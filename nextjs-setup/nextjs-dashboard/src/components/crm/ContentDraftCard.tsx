@@ -6,15 +6,25 @@ import StatusPill from "@/components/ui/StatusPill";
 
 interface ContentDraftCardProps {
   draft?: ContentDraft;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string) => void;
+  onPublish?: (id: string, platform: string) => void;
+  onEdit?: (id: string) => void;
   onUpdateStatus?: (id: string, status: DraftStatus) => void;
   compact?: boolean;
 }
 
 export default function ContentDraftCard({
   draft: draftData,
-  onUpdateStatus,
+  onApprove = () => {},
+  onReject = () => {},
+  onPublish = () => {},
+  onEdit = () => {},
+  onUpdateStatus = () => {},
   compact = false,
 }: ContentDraftCardProps) {
+  const [isPublishing, setIsPublishing] = React.useState(false);
+
   const platformColors: Record<string, string> = {
     meta: "#1877F2",
     instagram: "#E4405F",
@@ -22,6 +32,29 @@ export default function ContentDraftCard({
     x: "#718579",
     tiktok: "#00F2FE",
     youtube: "#FF0000",
+  };
+
+  const createPublishJob = async (draftId: string, platform: string) => {
+    setIsPublishing(true);
+    try {
+      const res = await fetch("/api/crm/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId, platform }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIsPublishing(false);
+        onUpdateStatus(draftId, "published");
+        alert("Publish job submitted successfully");
+      } else {
+        setIsPublishing(false);
+        alert("Failed to submit publish job: " + (data.error || ""));
+      }
+    } catch {
+      setIsPublishing(false);
+      alert("Error submitting publish job");
+    }
   };
 
   const draft = draftData || {
@@ -146,14 +179,14 @@ export default function ContentDraftCard({
             <button
               className="btn primary"
               style={{ padding: "0.45rem 0.85rem", fontSize: "var(--text-xs)", flex: 1 }}
-              onClick={() => onUpdateStatus(draft.id, "approved")}
+              onClick={() => onApprove(draft.id)}
             >
               ✓ Approve Post
             </button>
             <button
               className="btn secondary"
               style={{ padding: "0.45rem 0.85rem", fontSize: "var(--text-xs)" }}
-              onClick={() => onUpdateStatus(draft.id, "rejected")}
+              onClick={() => onReject(draft.id)}
             >
               ✕ Reject
             </button>
@@ -170,14 +203,14 @@ export default function ContentDraftCard({
                 flex: 1,
                 background: "var(--secondary)",
               }}
-              onClick={() => onUpdateStatus(draft.id, "published")}
+              onClick={() => isPublishing ? null : onPublish(draft.id, draft.platform)}
             >
               🚀 Publish to {draft.platform}
             </button>
             <button
               className="btn secondary"
               style={{ padding: "0.45rem 0.85rem", fontSize: "var(--text-xs)" }}
-              onClick={() => onUpdateStatus(draft.id, "draft")}
+onClick={() => onEdit(draft.id)}
             >
               Move to Draft
             </button>
