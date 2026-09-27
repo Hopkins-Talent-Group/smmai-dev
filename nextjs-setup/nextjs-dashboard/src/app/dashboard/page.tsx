@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import DashboardShell from "@/components/layout/DashboardShell";
 import DashboardHeader from "@/components/layout/DashboardHeader";
-import LayoutControlBar, { DashboardViewSection } from "@/components/layout/LayoutControlBar";
+import LayoutControlBar from "@/components/layout/LayoutControlBar";
+import { DashboardViewSection } from "@/lib/crm";
 import SiteFooter from "@/components/layout/SiteFooter";
 import ApprovalQueue from "@/components/crm/ApprovalQueue";
 import AutomationStatusCard from "@/components/crm/AutomationStatusCard";
@@ -31,7 +32,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <DashboardHeader
+<DashboardHeader
         currentSection={currentSection}
         viewMode={viewMode}
         density={density}
@@ -41,7 +42,8 @@ export default function DashboardPage() {
         onToggleViewMode={setViewMode}
         onToggleDensity={setDensity}
         onPlatformChange={setSelectedPlatform}
-      />
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+/>
 
       <DashboardShell
         sidebarOpen={sidebarOpen}
@@ -82,10 +84,18 @@ export default function DashboardPage() {
           {currentSection === "guardrails" && <BrandProfileCard />}
 
         {currentSection === "crm" && <CRMDashboard />}
+
+          {currentSection === "clients" && (
+            <section style={{ padding: 24, margin: 16 }}>
+              <h1 style={{ marginTop: 0 }}>Clients</h1>
+              <p style={{ color: "#6b7280", marginTop: 4 }}>
+                Manage customer records, statuses, and account assignments.
+              </p>
+            </section>
+          )}
         </div>
       </DashboardShell>
 
-      <SiteFooter />
     </div>
   );
 }

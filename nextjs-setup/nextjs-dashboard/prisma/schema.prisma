@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------------------------------
+// Authentication
+// ------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("user")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  workspaces  Workspace[]
+  sessions    Session[]
+  memberships Membership[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users  Membership[]
+  user   User?        @relation(fields: [userId], references: [id])
+  userId String?
+}
+
+model Membership {
+  id          String    @id @default(cuid())
+  role        String
+  user        User      @relation(fields: [userId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  userId      String
+  workspaceId String
+
+  @@unique([userId, workspaceId])
+}
+
+// ------------------------------------------------------------------
+// Moderation & Approval
+// ------------------------------------------------------------------
+
+model ModerationRun {
+  id            String   @id @default(cuid())
+  draftId       String
+  policyVersion String
+  result        String
+  findings      Json?
+  createdAt     DateTime @default(now())
+
+  draft         String
+}
+
+model Approval {
+  id            String   @id @default(cuid())
+  draftId       String
+  revisionId    String
+  actorId       String
+  approvedAt    DateTime @default(now())
+  policyVersion String
+
+  @@unique([draftId, revisionId])
+}
+
+model ContentRevision {
+  id        String   @id @default(cuid())
+  draftId   String
+  content   Json
+  version   Int
+  createdAt DateTime @default(now())
+  createdBy String?
+}

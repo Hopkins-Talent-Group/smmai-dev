@@ -2,7 +2,7 @@
 
 import React from "react";
 
-export type DashboardViewSection = "approval" | "graph" | "analytics" | "guardrails";
+import { DashboardViewSection } from "@/lib/crm";
 
 interface LayoutControlBarProps {
   currentSection: DashboardViewSection;
