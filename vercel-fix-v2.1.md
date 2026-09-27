@@ -1,7 +1,36 @@
+# v2.1 — Nav Header UI Fix
+
+The `DashboardHeader` component still had two lingering issues from the earlier build logs (`TS2322` on the toggle handlers) plus general UI gaps after adding Clients in v2. This rewrites it cleanly, fixes the types, and upgrades the visual layout.
+
+## What changed in v2.1
+
+| Area | Before | After |
+|---|---|---|
+| Section tabs | Inline buttons, hidden on mobile | Scrollable tab strip wired to `DashboardViewSection` |
+| View/density toggles | `onClick={setViewMode}` → `TS2322` | Wrapped handlers, accessible `aria-pressed`, segmented control UI |
+| Platform filter | Raw `<select>` | Styled select with icon, persists to parent |
+| Search | Absent | Optional global search box (debounced) |
+| User menu | Static avatar | Dropdown with role + sign out stub |
+| Notifications | Absent | Bell with unread badge and dropdown |
+| Mobile | Broken layout | Hamburger toggles sidebar; tabs scroll horizontally |
+| A11y | None | `aria-*`, keyboard-friendly, focus rings |
+| Types | `string` / inferred | All fields typed against `crm.ts` |
+
+---
+
+## 1. `src/components/layout/DashboardHeader.tsx`
+
+Full replacement. Keeps the existing prop contract but adds optional new ones so it stays backwards-compatible with `DashboardShell`.
+
+```tsx
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
 import { DashboardViewSection } from "@/lib/crm";
+
+/* ------------------------------------------------------------------ */
+/* Types                                                               */
+/* ------------------------------------------------------------------ */
 
 export interface DashboardHeaderProps {
   currentSection: DashboardViewSection;
@@ -9,6 +38,7 @@ export interface DashboardHeaderProps {
   density: "spacious" | "compact";
   selectedPlatform: string;
   sidebarOpen: boolean;
+
   onSelectSection: (section: DashboardViewSection) => void;
   onToggleViewMode: (mode: "grid" | "list") => void;
   onToggleDensity: (density: "spacious" | "compact") => void;
@@ -40,6 +70,10 @@ const TABS: { id: DashboardViewSection; label: string }[] = [
   { id: "analytics", label: "Analytics" },
   { id: "settings", label: "Settings" },
 ];
+
+/* ------------------------------------------------------------------ */
+/* Component                                                           */
+/* ------------------------------------------------------------------ */
 
 export default function DashboardHeader({
   currentSection,
@@ -176,7 +210,7 @@ export default function DashboardHeader({
               <div style={dropdownStyle} role="menu">
                 <div style={dropdownHeaderStyle}>Notifications</div>
                 {notificationCount === 0 ? (
-                  <div style={dropdownEmptyStyle}>You\x27re all caught up.</div>
+                  <div style={dropdownEmptyStyle}>You're all caught up.</div>
                 ) : (
                   <ul style={listStyle}>
                     <li style={listItemStyle}>3 drafts awaiting approval</li>
@@ -605,3 +639,131 @@ const srOnly: React.CSSProperties = {
   whiteSpace: "nowrap",
   border: 0,
 };
+```
+
+---
+
+## 2. Wire `onToggleSidebar` from the shell
+
+`DashboardShell.tsx` must pass the sidebar toggle so the hamburger works. Ensure it renders both and passes the prop:
+
+```tsx
+// src/components/layout/DashboardShell.tsx
+const [sidebarOpen, setSidebarOpen] = useState(true);
+
+<DashboardHeader
+  currentSection={activeSection}
+  viewMode={viewMode}
+  density={density}
+  selectedPlatform={selectedPlatform}
+  sidebarOpen={sidebarOpen}
+  onSelectSection={onSectionChange}
+  onToggleViewMode={setViewMode}
+  onToggleDensity={setDensity}
+  onPlatformChange={setSelectedPlatform}
+  onToggleSidebar={() => setSidebarOpen((v) => !v)}
+  onSearch={(q) => { /* optional: propagate to pages */ }}
+  userName="Citrix Lab"
+  userRole="Admin"
+  notificationCount={3}
+/>
+```
+
+If `DashboardShell` already manages `sidebarOpen` for its sidebar, just pass `() => setSidebarOpen(v => !v)` — no other change needed.
+
+---
+
+## 3. Optional — debounced search consumers
+
+If you want the search to filter the Clients table, lift state or use a small context. Simplest approach in `dashboard/page.tsx`:
+
+```tsx
+const [query, setQuery] = useState("");
+
+<DashboardShell
+  // ...
+  onSearch={setQuery}   // passed through to DashboardHeader
+/>
+
+{currentSection === "clients" && (
+  <section style={{ padding: 24 }}>
+    <ClientsTable globalQuery={query} />
+  </section>
+)}
+```
+
+Then in `ClientsTable`, seed the search box from `globalQuery`:
+
+```tsx
+export default function ClientsTable({ globalQuery = "" }: { globalQuery?: string }) {
+  // ...
+  useEffect(() => setSearch(globalQuery), [globalQuery]);
+}
+```
+
+This is optional — the header works standalone without it.
+
+---
+
+## 4. Errors this fixes
+
+| Original error | Fix |
+|---|---|
+| `DashboardHeader.tsx(98,11) TS2322: Type '(mode: "grid" \| "list") => void' is not assignable to MouseEventHandler` | Handlers are wrapped: `onClick={() => onToggleViewMode("grid")}` |
+| `DashboardHeader.tsx(112,11) TS2322: Type '(density: "spacious" \| "compact") => void' …` | Same pattern for density |
+| Section switch type mismatch (`string` vs `DashboardViewSection`) | Tabs iterate `TABS: { id: DashboardViewSection }[]` and call `onSelectSection(tab.id)` |
+| Broken mobile layout | Hamburger + scroll tabs + hidden search/select under 720/880px |
+| Missing a11y | `role="tablist"`, `aria-selected`, `aria-pressed`, `aria-expanded`, `aria-label`, focus rings |
+
+---
+
+## 5. Verify locally
+
+```bash
+cd ~/smma/nextjs-setup/nextjs-dashboard
+pnpm build
+```
+
+Expect a clean type-check and the header to appear in the dashboard. Then:
+
+```bash
+pnpm dev
+```
+
+Open `http://localhost:3000/dashboard` and check:
+
+- [ ] Tabs switch sections (Overview / Approval / Drafts / Clients / Analytics / Settings)
+- [ ] Grid/List toggle visibly toggles `aria-pressed` and swaps the icon styling
+- [ ] Density toggle does the same
+- [ ] Platform dropdown updates (visible in the shell state)
+- [ ] Bell opens/closes, shows badge when `notificationCount > 0`
+- [ ] User menu opens/closes on outside click
+- [ ] Search box debounces (`onSearch` fires ~250 ms after typing)
+- [ ] Resize to ≤880px → search disappears; ≤720px → select and user text disappear; tabs scroll horizontally
+- [ ] Tab key cycles focus rings on hamburger, bell, user, and tabs
+- [ ] No console errors
+
+---
+
+## 6. Commit
+
+```bash
+cd ~/smma
+git add nextjs-setup/nextjs-dashboard/src/components/layout/DashboardHeader.tsx \
+        nextjs-setup/nextjs-dashboard/src/components/layout/DashboardShell.tsx \
+        nextjs-setup/nextjs-dashboard/src/app/dashboard/page.tsx
+git commit -m "v2.1: fix nav header UI, types, and responsive layout"
+git push origin main
+```
+
+---
+
+## 7. v2.1 deliverables
+
+| File | Change |
+|---|---|
+| `DashboardHeader.tsx` | Full rewrite: types fixed, tabs, toggles, search, notifications, user menu, mobile responsive, a11y |
+| `DashboardShell.tsx` | Pass `sidebarOpen` + `onToggleSidebar`; forward optional `onSearch` / user props |
+| `dashboard/page.tsx` | Optional: wire global search state → `ClientsTable` |
+
+Once pushed, Vercel should build cleanly and the header will look and behave like a real dashboard nav — no more type errors, no more squeezed mobile layout.
