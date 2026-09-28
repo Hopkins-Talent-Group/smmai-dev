@@ -1,23 +1,16 @@
-/**
- * Prisma client for Next.js App Router.
- * 
- * IMPORTANT: This module uses the real PrismaClient connected to PostgreSQL.
- * The global singleton pattern prevents multiple instances in development
- * while ensuring a single client is used in production (Vercel).
- */
-
 import { PrismaClient } from "@prisma/client";
-import type { Prisma } from "@prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
 const globalForPrisma = globalThis as unknown as {
-  prisma?: PrismaClient;
+  prisma: PrismaClient | undefined;
 };
 
+const adapter = new PrismaNeon({
+  connectionString: process.env.DATABASE_URL,
+});
+
 export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV !== "production" ? ["query", "error", "warn"] : ["error"],
-  });
+  globalForPrisma.prisma ?? new PrismaClient({ adapter });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
